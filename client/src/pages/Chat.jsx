@@ -12,26 +12,31 @@ const Chat = () => {
   const [isLoading, setIsLoading] = useState(false);
   const scrollRef = useRef(null);
 
-  // 1. Loading chat history - Fixed logic to handle the history array correctly
+  // Fetch history on mount
   useEffect(() => {
     const fetchHistory = async () => {
       try {
         const res = await api.get('/chat/history');
-        // Backend returns: { success: true, history: [...] }
-        if (res.data.success) {
+        if (res.data?.success) {
           setMessages(res.data.history);
         }
       } catch (error) {
-        console.error("failed to fetch history", error);
+        console.error("Failed to fetch history:", error);
       }
     };
     fetchHistory();
   }, []);
 
-  // Auto scroll to bottom
+  // Reliable Auto-scroll logic for mobile and desktop
   useEffect(() => {
     if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
+      const scrollContainer = scrollRef.current.querySelector('[data-radix-scroll-area-viewport]');
+      if (scrollContainer) {
+        scrollContainer.scrollTo({
+          top: scrollContainer.scrollHeight,
+          behavior: "smooth"
+        });
+      }
     }
   }, [messages, isLoading]);
 
@@ -39,7 +44,6 @@ const Chat = () => {
     e.preventDefault();
     if (!input.trim() || isLoading) return;
 
-    // Capture the message before clearing input
     const messageToSend = input;
     const userMessage = { role: "user", content: messageToSend };
     
@@ -48,38 +52,41 @@ const Chat = () => {
     setIsLoading(true);
 
     try {
-      // 2. URL and Payload Fix: Matches backend controller req.body.message
       const res = await api.post("/chat/send", { message: messageToSend });
-      
-      // 3. Role Fix: Matches backend role "aura"
       const aiMessage = { role: "aura", content: res.data.response };
       setMessages((prev) => [...prev, aiMessage]); 
     } catch (err) {
-      console.error("AI error", err);
-      // Optional: Add a system message if it fails
-      setMessages((prev) => [...prev, { role: "aura", content: "I'm having trouble connecting right now. Please try again." }]);
+      console.error("AI error:", err);
+      setMessages((prev) => [...prev, { 
+        role: "aura", 
+        content: "I'm having a little trouble connecting. Please try again in a moment." 
+      }]);
     } finally {
-      // 4. Important: Always stop loading
       setIsLoading(false);
     }
   };
 
   return (
-    <div className="flex flex-col h-[85vh] bg-white/40 backdrop-blur-md rounded-3xl border border-slate-200 overflow-hidden shadow-xl">
-      {/* Chat Header */}
-      <div className="p-4 border-b border-slate-200 bg-white/50 flex items-center gap-3">
-        <div className="bg-indigo-100 p-2 rounded-full">
-          <Sparkles className="text-indigo-600 size-5" />
+    /* Container Fixes:
+      - h-[calc(100dvh-80px)]: Uses dynamic viewport height to prevent keyboard overlap on mobile.
+      - w-full: Ensures it doesn't exceed screen width.
+    */
+    <div className="flex flex-col h-[calc(100dvh-100px)] md:h-[85vh] w-full bg-white/40 backdrop-blur-md rounded-2xl md:rounded-3xl border border-slate-200 overflow-hidden shadow-xl">
+      
+      {/* Header: Compact on mobile, spacious on desktop */}
+      <div className="p-3 md:p-4 border-b border-slate-200 bg-white/50 flex items-center gap-3 shrink-0">
+        <div className="bg-indigo-100 p-1.5 md:p-2 rounded-full">
+          <Sparkles className="text-indigo-600 size-4 md:size-5" />
         </div>
         <div>
-          <h2 className="font-bold text-slate-800">Aura AI</h2>
-          <p className="text-xs text-green-500 font-medium">Online • Your Personal Sanctuary</p>
+          <h2 className="font-bold text-sm md:text-base text-slate-800">Aura AI</h2>
+          <p className="text-[10px] md:text-xs text-green-500 font-medium leading-none">Online • Your Sanctuary</p>
         </div>
       </div>
 
-      {/* Messages Area */}
-      <ScrollArea className="flex-1 p-6" viewportRef={scrollRef}>
-        <div className="space-y-6">
+      {/* Messages: Optimized padding and spacing for small screens */}
+      <ScrollArea className="flex-1 px-3 md:px-6 py-4" ref={scrollRef}>
+        <div className="space-y-4 md:space-y-6">
           <AnimatePresence initial={false}>
             {messages.map((msg, index) => (
               <motion.div
@@ -88,16 +95,15 @@ const Chat = () => {
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
               >
-                <div className={`flex gap-3 max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
-                  <div className={`size-8 rounded-full flex items-center justify-center shrink-0 ${
+                <div className={`flex gap-2 md:gap-3 max-w-[92%] md:max-w-[80%] ${msg.role === 'user' ? 'flex-row-reverse' : 'flex-row'}`}>
+                  <div className={`size-7 md:size-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
                     msg.role === 'user' ? 'bg-indigo-600' : 'bg-slate-200'
                   }`}>
-                    {msg.role === 'user' ? <User className="text-white size-4" /> : <Sparkles className="text-slate-600 size-4" />}
+                    {msg.role === 'user' ? <User className="text-white size-3 md:size-4" /> : <Sparkles className="text-slate-600 size-3 md:size-4" />}
                   </div>
-                  <div className={`p-4 rounded-2xl text-sm leading-relaxed shadow-sm ${
+                  <div className={`p-3 md:p-4 rounded-2xl text-xs md:text-sm leading-relaxed shadow-sm break-words ${
                     msg.role === 'user' 
                     ? 'bg-indigo-600 text-white rounded-tr-none' 
-                    // Matches role "aura" from backend
                     : 'bg-white border border-slate-100 text-slate-700 rounded-tl-none'
                   }`}>
                     {msg.content}
@@ -108,33 +114,29 @@ const Chat = () => {
           </AnimatePresence>
           
           {isLoading && (
-            <motion.div 
-              initial={{ opacity: 0 }} 
-              animate={{ opacity: 1 }} 
-              className="flex justify-start"
-            >
-              <div className="bg-slate-100 px-4 py-2 rounded-2xl rounded-tl-none text-xs text-slate-500 animate-pulse">
-                Aura is thinking...
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="flex justify-start">
+              <div className="bg-slate-100 px-3 py-2 rounded-2xl rounded-tl-none text-[10px] md:text-xs text-slate-500 animate-pulse">
+                Aura is writing...
               </div>
             </motion.div>
           )}
         </div>
       </ScrollArea>
 
-      {/* Input Area */}
-      <form onSubmit={handleSendMessage} className="p-4 bg-white/80 border-t border-slate-200 flex gap-2">
+      {/* Input: Prevents zooming on mobile by keeping text at 16px (text-base) */}
+      <form onSubmit={handleSendMessage} className="p-3 md:p-4 bg-white/80 border-t border-slate-200 flex gap-2 shrink-0">
         <Input 
-          placeholder="Share what's on your mind..." 
+          placeholder="What's on your mind?" 
           value={input}
           onChange={(e) => setInput(e.target.value)}
           disabled={isLoading}
-          className="rounded-xl border-slate-200 focus-visible:ring-indigo-400"
+          className="rounded-xl border-slate-200 focus-visible:ring-indigo-400 text-base md:text-sm"
         />
         <Button 
           type="submit" 
           size="icon" 
-          disabled={isLoading}
-          className="bg-indigo-600 hover:bg-indigo-700 rounded-xl shrink-0 transition-all active:scale-95"
+          disabled={isLoading || !input.trim()}
+          className="bg-indigo-600 hover:bg-indigo-700 rounded-xl shrink-0 transition-all active:scale-90"
         >
           <Send className="size-4" />
         </Button>
