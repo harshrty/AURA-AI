@@ -16,7 +16,11 @@ connectDB();
 const app = express();
 
 // Middlewares (Order is important!)
-app.use(cors());
+app.use(cors({
+    origin: "https://aura-ai-dun.vercel.app", // Use your exact URL here
+    methods: ["GET", "POST", "PUT", "DELETE"],
+    credentials: true
+}));
 app.use(express.json()); // Only need this once
 
 // Routes
